@@ -10,7 +10,7 @@ use Data::Walk qw( walk );
 use List::Util qw( shuffle );
 use String::Random qw( random_regex );
 
-our $VERSION = 0.02;
+our $VERSION = 0.03;
 
 # Guarantee that toposort is loaded.
 use base 'DBIx::Class::TopoSort';
@@ -545,6 +545,10 @@ of these forms:
 =item * "P.O. Box ####", so something like "P.O. Box 97531"
 
 =back
+
+=item * us_city
+
+This generates a reasonable-looking US city name.
 
 =item * us_county
 

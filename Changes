@@ -1,0 +1,22 @@
+Revision history for DBIx::Class::Sims (ordered by revision number).
+
+0.03 Sep 20 2013 08:00:00 PDT
+   - Added missing files to the MANIFEST
+      - Which included this file
+   - Added the following column types:
+      - us_city
+
+0.02 Sep 19 2013 17:30:00 PDT
+   - Removed unneeded import of Data::Dumper
+   - set_sim_type() now takes a hashref, not a hash.
+      - The documentation in 0.01 was correct, the code was not.
+   - Added the following column types:
+      - us_address
+      - us_county
+      - us_name
+      - us_phone
+      - us_ssntin
+      - us_state
+
+0.01 Sep 18 2013 20:00:00 PDT
+   - Initial version
