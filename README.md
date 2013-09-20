@@ -89,7 +89,9 @@ for testing purposes (though, obviously, it's not limited to just test data).
 
 # METHODS
 
-## $rv = $schema->load\_sims( $spec, ?$constraints, ?$hooks )
+## load\_sims
+
+`$rv = $schema->load_sims( $spec, ?$constraints, ?$hooks )`
 
 This method will load the rows requested in `$spec`, plus any additional rows
 necessary to make those rows work. This includes any parent rows (as defined by
@@ -147,7 +149,9 @@ You will receive back (assuming the next PK values are as below):
 Note that you do not get back the ids for any additional rows generated (such as
 for the children). 
 
-## $class\_or\_obj->set\_sim\_type({ $name => $handler, ... });
+## set\_sim\_type
+
+`$class_or_obj->set_sim_type({ $name => $handler, ... });`
 
 This method will set the handler for the `$name` sim type. The handler must be
 a reference to a subroutine. You may pass in as many name/handler pairs as you
@@ -244,12 +248,73 @@ value that will be used for this column.
 
 The following sim types are pre-defined:
 
+- us\_address
+
+    This generates a reasonable-looking US street address. The address will be one
+    of these forms:
+
+    - "\#\#\#\# Name Type", so something like "123 Main Street"
+    - "PO Box \#\#\#\#", so something like "PO Box 13579"
+    - "P.O. Box \#\#\#\#", so something like "P.O. Box 97531"
+
+- us\_county
+
+    This generates a reasonable-looking US county name.
+
+- us\_name
+
+    This generates a reasonable-looking US person name. The name will contain a
+    first name, a last name, and possibly a suffix. The first name will be
+    randomized as to gender and the last name may contain one word, two words, or an
+    apostrophized word.
+
+- us\_phone
+
+    This generates a reasonable-looking US phone-number, based on the size of the
+    column being filled. The column is assumed to be a character-type column
+    (varchar, etc). If the size of the column is less than 10, there will be no area
+    code. If there is space, hyphens and parentheses will be added in the right
+    places. If the column is long enough, the value will look like "(\#\#\#) \#\#\#-\#\#\#\#"
+
+    Phone extensions are not supported at this time.
+
+- us\_ssntin
+
+    This generates a reasonable-looking US Social Security Number (SSN) or Tax
+    Identification Number (TIN). These are government identifiers that are often
+    usable as unique personal IDs. An SSN is a personal ID number and a TIN is a
+    corporate ID number.
+
+- us\_state
+
+    This generates a random US state or territory (so 57 choices). The column is
+    assumed to be able to take a US state as a value. If the size of the column is 2
+    (the default), then the abbreviation will be returned. Otherwise, the first N
+    characters of the name (where N is the size) will be returned.
+
 - us\_zipcode
 
     This generates a reasonable-looking US zipcode. If the column is numeric, it
     generates a number between 1 and 99999. Otherwise, it generates a legal string
     of numbers (with a possible dash for a 5+4) that will fit within the column's
     width.
+
+The reason why the pre-defined sim types have the country prefixed is because
+different countries do things differently. (Shocker, I know!)
+
+# TODO
+
+## Multi-column types
+
+In some applications, columns like "state" and "zipcode" are correlated. Values
+for one must be legal for the value in the other. The Sims currently has no way
+of generating correlated columns like this.
+
+# BUGS/SUGGESTIONS
+
+This module is hosted on Github at
+[https://github.com/robkinyon/dbix-class-sims](https://github.com/robkinyon/dbix-class-sims). Pull requests are strongly
+encouraged.
 
 # DBIx::Class::Fixtures
 
