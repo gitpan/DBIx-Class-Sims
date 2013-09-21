@@ -26,5 +26,5 @@ requires:
   perl: 5.008
 resources:
   license: http://dev.perl.org/licenses/
-version: 0.03
+version: 0.04
 x_module_name: DBIx::Class::Sims

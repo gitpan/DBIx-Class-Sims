@@ -1,5 +1,12 @@
 Revision history for DBIx::Class::Sims (ordered by revision number).
 
+0.05 Sep 20 2013 17:30:00 PDT
+   - Better documentation of the "sim" entry in the column_info
+   - Added nullable frequency.
+      - This allows control over when a nullable column is null vs. populated.
+   - Added the following column types:
+      - ip_address
+
 0.04 Sep 20 2013 14:30:00 PDT
    - Split out the included types documentation into its own POD
    - Added "value" as an sim option.
