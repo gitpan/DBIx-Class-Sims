@@ -21,10 +21,11 @@ requires:
   DBIx::Class::TopoSort: 0
   Data::Walk: 0
   List::Util: 0
+  Scalar::Util: 0
   String::Random: 0
   YAML::XS: 0
   perl: 5.008
 resources:
   license: http://dev.perl.org/licenses/
-version: 0.05
+version: 0.1.0
 x_module_name: DBIx::Class::Sims

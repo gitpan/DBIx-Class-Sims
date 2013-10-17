@@ -23,9 +23,10 @@ requires:
   DBIx::Class::TopoSort: 0
   Data::Walk: 0
   List::Util: 0
+  Scalar::Util: 0
   String::Random: 0
   YAML::XS: 0
   perl: 5.8.0
 resources:
   license: http://dev.perl.org/licenses/
-version: 0.06
+version: 0.10

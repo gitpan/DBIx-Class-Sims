@@ -8,9 +8,10 @@ use warnings FATAL => 'all';
 
 use Data::Walk qw( walk );
 use List::Util qw( shuffle );
+use Scalar::Util qw( reftype );
 use String::Random qw( random_regex );
 
-our $VERSION = 0.06;
+our $VERSION = '0.10';
 
 # Guarantee that toposort is loaded.
 use base 'DBIx::Class::TopoSort';
@@ -175,44 +176,55 @@ sub load_sims {
     my ($name, $item) = @_;
     my $source = $self->source($name);
     foreach my $col_name ( $source->columns ) {
-      next if exists $item->{$col_name};
+      my $sim_spec;
+      if ( exists $item->{$col_name} ) {
+        if ((reftype($item->{$col_name}) || '') eq 'REF' &&
+          reftype(${$item->{$col_name}}) eq 'HASH' ) {
+          $sim_spec = ${ delete $item->{$col_name} };
+        }
+        # Pass the value along to DBIC - we don't know how to deal with it.
+        else {
+          next;
+        }
+      }
 
       my $info = $source->column_info($col_name);
       next if grep { $_ eq $col_name } $source->primary_columns;
 
-      if ( ref($info->{sim} || '') eq 'HASH' ) {
-        if ( exists $info->{sim}{null_chance} && !$info->{nullable} ) {
+      $sim_spec ||= $info->{sim};
+      if ( ref($sim_spec || '') eq 'HASH' ) {
+        if ( exists $sim_spec->{null_chance} && !$info->{nullable} ) {
           # Add check for not a number
-          if ( rand() < $info->{sim}{null_chance} ) {
+          if ( rand() < $sim_spec->{null_chance} ) {
             $item->{$col_name} = undef;
             next;
           }
         }
 
-        if ( ref($info->{sim}{func} || '') eq 'CODE' ) {
-          $item->{$col_name} = $info->{sim}{func}->($info);
+        if ( ref($sim_spec->{func} || '') eq 'CODE' ) {
+          $item->{$col_name} = $sim_spec->{func}->($info);
         }
-        elsif ( exists $info->{sim}{value} ) {
-          $item->{$col_name} = $info->{sim}{value};
+        elsif ( exists $sim_spec->{value} ) {
+          $item->{$col_name} = $sim_spec->{value};
         }
-        elsif ( $info->{sim}{type} ) {
-          my $meth = $self->sim_type($info->{sim}{type});
+        elsif ( $sim_spec->{type} ) {
+          my $meth = $self->sim_type($sim_spec->{type});
           if ( $meth ) {
             $item->{$col_name} = $meth->($info);
           }
           else {
-            warn "Type '$info->{sim}{type}' is not loaded";
+            warn "Type '$sim_spec->{type}' is not loaded";
           }
         }
         else {
           if ( $info->{data_type} eq 'int' ) {
-            my $min = $info->{sim}{min} || 0;
-            my $max = $info->{sim}{max} || 100;
+            my $min = $sim_spec->{min} || 0;
+            my $max = $sim_spec->{max} || 100;
             $item->{$col_name} = int(rand($max-$min))+$min;
           }
           elsif ( $info->{data_type} eq 'varchar' ) {
-            my $min = $info->{sim}{min} || 1;
-            my $max = $info->{sim}{max} || $info->{data_length} || 255;
+            my $min = $sim_spec->{min} || 1;
+            my $max = $sim_spec->{max} || $info->{data_length} || 255;
             $item->{$col_name} = random_regex(
               '\w' . "{$min,$max}"
             );
@@ -237,18 +249,39 @@ sub load_sims {
     return $row;
   };
 
-  my %ids;
-  $self->txn_do(sub {
+  return $self->txn_do(sub {
+    my %rv;
     foreach my $name ( grep { $spec->{$_} } $self->toposort() ) {
-      my @pk_cols = $self->source($name)->primary_columns;
-      foreach my $item ( @{$spec->{$name}} ) {
-        my $row = $subs{create_item}->($name, $item);
-        push @{ $ids{$name} ||= [] }, {( map { $_ => $row->$_ } @pk_cols )};
+      # Allow a number to be passed in
+      if ( (reftype($spec->{$name})||'') ne 'ARRAY' ) {
+        if ( !ref($spec->{$name}) ) {
+          if ( $spec->{$name} =~ /^\d+$/ ) {
+            $spec->{$name} = [ map { {} } 1 .. $spec->{$name} ];
+          }
+          # I don't know what to do with it.
+          else {
+            warn "Skipping $name - I don't know what to do!\n";
+            next;
+          }
+        }
+        # If they pass a hashref, wrap it in an arrayref.
+        elsif ( reftype($spec->{$name}) eq 'HASH' ) {
+          $spec->{$name} = [ $spec->{$name} ];
+        }
+        # I don't know what to do with it.
+        else {
+          warn "Skipping $name - I don't know what to do!\n";
+          next;
+        }
       }
-    }
-  });
 
-  return \%ids;
+      @{ $rv{$name} ||= [] } = map {
+        $subs{create_item}->($name, $_)
+      } @{$spec->{$name}};
+    }
+
+    return \%rv;
+  });
 }
 
 use YAML::Any qw( LoadFile Load );
@@ -396,45 +429,10 @@ transactions. (I'm looking at you, MyISAM!) If they do not, that is on you.
 
 This will return a hash of arrays of hashes. This will match the C<$spec>,
 except that where the C<$spec> has a requested set of things to make, the return
-will have the primary columns.
+will have the DBIx::Class::Row objects that were created.
 
-Examples:
-
-If you have a table foo with "id" as the primary column and you requested:
-
-  {
-    Foo => [
-      { name => 'bar' },
-    ],
-  }
-
-You will receive back (assuming the next id value is 1):
-
-  {
-    Foo => [
-      { id => 1 },
-    ],
-  }
-
-If you have a table foo with "name" and "type" as the primary columns and you
-requested:
-
-  {
-    Foo => [
-      { children => [ {} ] },
-    ],
-  }
-
-You will receive back (assuming the next PK values are as below):
-
-  {
-    Foo => [
-      { name => 'bar', type => 'blah' },
-    ],
-  }
-
-Note that you do not get back the ids for any additional rows generated (such as
-for the children). 
+Note that you do not get back the objects for anything other than the objects
+specified at the top level.
 
 =head2 set_sim_type
 
@@ -476,6 +474,20 @@ parent-child relationship. (Otherwise, a random choice will be made as to which
 parent to use, creating one as necessary if possible.) The dots will be followed
 as far as necessary.
 
+If a column's value is a reference to a hashref, then that will be treated as a
+sim entry. Example:
+
+  {
+    Artist => [
+      {
+        name => \{ type => 'us_name' },
+      },
+    ],
+  }
+
+That will use the provided sim type 'us_name'. This will override any sim entry
+specified on the column. See L</SIM ENTRY> for more information.
+
 Columns that have not been specified will be populated in one of two ways. The
 first is if the database has a default value for it. Otherwise, you can specify
 the C<sim> key in the column_info for that column. This is a new key that is not
@@ -485,6 +497,39 @@ used by any other component. See L</SIM ENTRY> for more information.
 
 B<NOTE>: The keys of the outermost hash are resultsource names. The keys within
 the row-specific hashes are either columns or relationships. Not resultsources.
+
+=head2 Alternatives
+
+=head3 Hard-coded number of things
+
+If you only want N of a thing, not really caring just what the column values end
+up being, you can take a shortcut:
+
+  {
+    ResultSourceName => 3,
+  }
+
+That will create 3 of that thing, taking all the defaults and sim'ed options as
+exist.
+
+=head3 Just one thing
+
+If you are creating one of a thing and setting some of the values, you can skip
+the arrayref and pass the hashref directly.
+
+  {
+    ResultSourceName => {
+      column => $value,
+      column => $value,
+      relationship => {
+        column => $value,
+      },
+      'relationship.column' => $value,
+      'rel1.rel2.rel3.column' => $value,
+    },
+  }
+
+And that will work exactly as expected.
 
 =head1 CONSTRAINTS
 

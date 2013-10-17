@@ -5,6 +5,7 @@ use warnings FATAL => 'all';
 use Test::More;
 use Test::Deep;
 use Test::Exception;
+use Test::Warn;
 
 BEGIN {
   {
@@ -95,9 +96,9 @@ use Test::DBIx::Class qw(:resultsets);
   Schema->deploy({ add_drop_table => 1 });
 
   is Artist->count, 0, "There are no artists loaded at first";
-  my $ids;
+  my $rv;
   lives_ok {
-    $ids = Schema->load_sims(
+    $rv = Schema->load_sims(
       {
         Artist => [
           { name => 'foo' },
@@ -112,16 +113,16 @@ use Test::DBIx::Class qw(:resultsets);
     [ 1, 'foo', 'purple' ],
   ], "Artist columns are right";
   
-  cmp_deeply( $ids, { Artist => [ { id => 1 } ] } );
+  cmp_deeply( $rv, { Artist => [ methods(id => 1) ] } );
 }
 
 {
   Schema->deploy({ add_drop_table => 1 });
 
   is Artist->count, 0, "There are no artists loaded at first";
-  my $ids;
+  my $rv;
   lives_ok {
-    $ids = Schema->load_sims(
+    $rv = Schema->load_sims(
       {
         Artist => [
           { name => 'foo' },
@@ -138,11 +139,149 @@ use Test::DBIx::Class qw(:resultsets);
     [ 2, 'bar', 'red' ],
   ], "Artist columns are right";
   
-  cmp_deeply( $ids, { Artist => [ { id => 1 }, { id => 2 } ] } );
+  cmp_deeply( $rv, { Artist => [ methods(id => 1), methods(id => 2) ] } );
+}
+
+# Test passing in a sim type
+{
+  Schema->deploy({ add_drop_table => 1 });
+
+  is Artist->count, 0, "There are no artists loaded at first";
+  my $rv;
+  lives_ok {
+    $rv = Schema->load_sims(
+      {
+        Artist => [
+          { name => \{ value => 'george' } },
+        ],
+      },
+    );
+  } "Everything loads ok";
+
+  my $rs = Artist;
+  is Artist->count, 1, "There are now one artist loaded after load_sims is called";
+  is_fields [ 'id', 'name', 'hat_color' ], $rs, [
+    [ 1, 'george', 'purple' ],
+  ], "Artist columns are right";
+  
+  cmp_deeply( $rv, { Artist => [ methods(id => 1) ] } );
+}
+
+Schema->source('Artist')->column_info('name')->{sim}{value} = 'george';
+
+# Verify that passing in a sim spec overrides the existing one.
+{
+  Schema->deploy({ add_drop_table => 1 });
+
+  is Artist->count, 0, "There are no artists loaded at first";
+  my $rv;
+  lives_ok {
+    $rv = Schema->load_sims(
+      {
+        Artist => [
+          { name => \{ value => 'bill' } },
+        ],
+      },
+    );
+  } "Everything loads ok";
+
+  my $rs = Artist;
+  is Artist->count, 1, "There are now one artist loaded after load_sims is called";
+  is_fields [ 'id', 'name', 'hat_color' ], $rs, [
+    [ 1, 'bill', 'purple' ],
+  ], "Artist columns are right";
+  
+  cmp_deeply( $rv, { Artist => [ methods(id => 1) ] } );
+}
+
+# Test the ability to pass in a number instead of a specification for a source
+{
+  Schema->deploy({ add_drop_table => 1 });
+
+  is Artist->count, 0, "There are no artists loaded at first";
+  my $rv;
+  lives_ok {
+    $rv = Schema->load_sims(
+      {
+        Artist => 1,
+      },
+    );
+  } "Everything loads ok";
+
+  my $rs = Artist;
+  is $rs->count, 1, "There are now one artist loaded after load_sims is called";
+  is_fields [ 'id', 'name', 'hat_color' ], $rs, [
+    [ 1, 'george', 'purple' ],
+  ], "Artist columns are right";
+  
+  cmp_deeply( $rv, { Artist => [ methods(id => 1) ] } );
+}
+
+{
+  Schema->deploy({ add_drop_table => 1 });
+
+  is Artist->count, 0, "There are no artists loaded at first";
+  my $rv;
+  lives_ok {
+    $rv = Schema->load_sims(
+      {
+        Artist => 2,
+      },
+    );
+  } "Everything loads ok";
+
+  my $rs = Artist;
+  is $rs->count, 2, "There are now two artists loaded after load_sims is called";
+  is_fields [ 'id', 'name', 'hat_color' ], $rs, [
+    [ 1, 'george', 'purple' ],
+    [ 2, 'george', 'purple' ],
+  ], "Artist columns are right";
+  
+  cmp_deeply( $rv, { Artist => [ methods(id => 1), methods(id => 2) ] } );
+}
+
+{
+  Schema->deploy({ add_drop_table => 1 });
+
+  is Artist->count, 0, "There are no artists loaded at first";
+  my $rv;
+  lives_ok {
+    $rv = Schema->load_sims(
+      {
+        Artist => {},
+      },
+    );
+  } "Everything loads ok";
+
+  my $rs = Artist;
+  is $rs->count, 1, "There are now one artist loaded after load_sims is called";
+  is_fields [ 'id', 'name', 'hat_color' ], $rs, [
+    [ 1, 'george', 'purple' ],
+  ], "Artist columns are right";
+  
+  cmp_deeply( $rv, { Artist => [ methods(id => 1) ] } );
+}
+
+{
+  Schema->deploy({ add_drop_table => 1 });
+
+  is Artist->count, 0, "There are no artists loaded at first";
+  my $rv;
+  warning_like {
+    $rv = Schema->load_sims(
+      {
+        Artist => \"",
+      },
+    );
+  } qr/^Skipping Artist - I don't know what to do!/;
+
+  my $rs = Artist;
+  is $rs->count, 0, "There are no artists loaded after load_sims is called";
+  
+  cmp_deeply( $rv, {} );
 }
 
 # Test the null_chance setting.
-Schema->source('Artist')->column_info('name')->{sim}{value} = 'george';
 Schema->source('Artist')->column_info('hat_color')->{sim}{null_chance} = 0.3;
 my $null_count = 0;
 for (1..1000) {
