@@ -48,6 +48,6 @@
          "http://dev.perl.org/licenses/"
       ]
    },
-   "version" : "0.1.0",
+   "version" : "0.10",
    "x_module_name" : "DBIx::Class::Sims"
 }
