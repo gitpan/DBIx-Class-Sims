@@ -11,7 +11,7 @@ use List::Util qw( shuffle );
 use Scalar::Util qw( reftype );
 use String::Random qw( random_regex );
 
-our $VERSION = '0.200001';
+our $VERSION = '0.200010';
 
 # Guarantee that toposort is loaded.
 use base 'DBIx::Class::TopoSort';
@@ -49,7 +49,7 @@ sub load_sims {
   my $self = shift;
   my ($spec_proto, $opts_proto) = @_;
 
-  my $spec = expand_dots( normalize_input($spec_proto) );
+  my $spec = expand_dots(normalize_input($spec_proto));
   my $opts = normalize_input($opts_proto || {});
 
   ###### FROM HERE ######
@@ -69,6 +69,7 @@ sub load_sims {
   # 1. Ensure the belongs_to relationships are in $reqs
   # 2. Set the rel_info as the leaf in $reqs
   my $reqs = normalize_input($opts->{constraints} || {});
+  my %is_foreign_key;
   foreach my $name ( $self->sources ) {
     my $source = $self->source($name);
 
@@ -78,6 +79,7 @@ sub load_sims {
 
       if ($is_fk->($rel_info)) {
         $reqs->{$name}{$rel_name} = 1;
+        $is_foreign_key{$name}{$_} = 1 for $self_fk_cols->($rel_info);
       }
     }
   }
@@ -146,6 +148,37 @@ sub load_sims {
 
     return \%child_deps;
   };
+  {
+    my %added_by;
+    my $are_columns_equal = sub {
+      my ($src, $row, $compare) = @_;
+      foreach my $col ($self->source($src)->columns) {
+        next if $is_foreign_key{$src}{$col};
+
+        next unless exists $row->{$col};
+        return unless exists $compare->{$col};
+        return if $compare->{$col} ne $row->{$col};
+      }
+      return 1;
+    };
+    $subs{add_child} = sub {
+      my ($src, $fkcol, $row, $adder) = @_;
+      # If $row has the same keys (other than parent columns) as another row
+      # added by a different parent table, then set the foreign key for this
+      # parent in the existing row.
+      foreach my $name (keys %added_by) {
+        next if $name eq $adder;
+        foreach my $compare (@{$added_by{$name}}) {
+          if ($are_columns_equal->($src, $row, $compare)) {
+            $compare->{$fkcol} = $row->{$fkcol};
+            return;
+          }
+        }
+      }
+      push @{$spec->{$src}}, $row;
+      push @{$added_by{$adder} ||= []}, $row;
+    };
+  }
   $subs{fix_child_dependencies} = sub {
     my ($name, $row, $child_deps) = @_;
 
@@ -173,7 +206,7 @@ sub load_sims {
       @children = ( ({}) x $reqs->{$name}{$rel_name} ) unless @children;
       foreach my $child (@children) {
         $child->{$fkcol} = $row->get_column($col);
-        $subs{create_item}->($fk_src, $child);
+        $subs{add_child}->($fk_src, $fkcol, $child, $name);
       }
     }
   };
@@ -253,35 +286,49 @@ sub load_sims {
     return $row;
   };
 
-  return $self->txn_do(sub {
-    my %rv;
-    foreach my $name ( grep { $spec->{$_} } $self->toposort(%{$opts->{toposort} || {}}) ) {
-      # Allow a number to be passed in
-      if ( (reftype($spec->{$name})||'') ne 'ARRAY' ) {
-        if ( !ref($spec->{$name}) ) {
-          if ( $spec->{$name} =~ /^\d+$/ ) {
-            $spec->{$name} = [ map { {} } 1 .. $spec->{$name} ];
-          }
-          # I don't know what to do with it.
-          else {
-            warn "Skipping $name - I don't know what to do!\n";
-            next;
-          }
-        }
-        # If they pass a hashref, wrap it in an arrayref.
-        elsif ( reftype($spec->{$name}) eq 'HASH' ) {
-          $spec->{$name} = [ $spec->{$name} ];
+  # Create a lookup of the items passed in so we can return them back.
+  my $initial_spec = {};
+  foreach my $name (keys %$spec) {
+    # Allow a number to be passed in
+    if ( (reftype($spec->{$name})||'') ne 'ARRAY' ) {
+      if ( !ref($spec->{$name}) ) {
+        if ( $spec->{$name} =~ /^\d+$/ ) {
+          $spec->{$name} = [ map { {} } 1 .. $spec->{$name} ];
         }
         # I don't know what to do with it.
         else {
           warn "Skipping $name - I don't know what to do!\n";
+          delete $spec->{$name};
           next;
         }
       }
+      # If they pass a hashref, wrap it in an arrayref.
+      elsif ( reftype($spec->{$name}) eq 'HASH' ) {
+        $spec->{$name} = [ $spec->{$name} ];
+      }
+      # I don't know what to do with it.
+      else {
+        warn "Skipping $name - I don't know what to do!\n";
+        delete $spec->{$name};
+        next;
+      }
+    }
 
-      @{ $rv{$name} ||= [] } = map {
-        $subs{create_item}->($name, $_)
-      } @{$spec->{$name}};
+    foreach my $item (@{$spec->{$name}}) {
+      $initial_spec->{$name}{$item} = 1;
+    }
+  }
+
+  return {} unless keys %{$spec};
+  return $self->txn_do(sub {
+    my %rv;
+    foreach my $name ( $self->toposort(%{$opts->{toposort} || {}}) ) {
+      next unless $spec->{$name};
+
+      while ( my $item = shift @{$spec->{$name}} ) {
+        my $x = $subs{create_item}->($name, $item);
+        push @{$rv{$name} ||= []}, $x if $initial_spec->{$name}{$item};
+      }
     }
 
     return \%rv;
@@ -534,6 +581,22 @@ the arrayref and pass the hashref directly.
   }
 
 And that will work exactly as expected.
+
+=head2 Notes
+
+=over 4
+
+=item * Multiply-specified children
+
+Sometimes, you will have a table with more than one parent (q.v. t/t5.t for an
+example of this). If you specify a row for each parent and, in each parent,
+specify a child with the same characteristics, only one child will be created.
+The assumption is that you meant the same row.
+
+This does B<not> apply to creating multiple rows with the same characteristics
+as children of the same table. The assumption is that you meant to do that.
+
+=back
 
 =head1 OPTS
 
