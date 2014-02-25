@@ -34,6 +34,7 @@
          "requires" : {
             "DBIx::Class::TopoSort" : "0",
             "Data::Walk" : "0",
+            "Hash::Merge" : "0",
             "List::Util" : "0",
             "Scalar::Util" : "0",
             "String::Random" : "0",
@@ -48,6 +49,6 @@
          "http://dev.perl.org/licenses/"
       ]
    },
-   "version" : "0.200001",
+   "version" : "0.200010",
    "x_module_name" : "DBIx::Class::Sims"
 }

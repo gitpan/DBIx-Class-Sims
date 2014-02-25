@@ -7,11 +7,12 @@ use strict;
 use warnings FATAL => 'all';
 
 use Data::Walk qw( walk );
+use Hash::Merge qw( merge );
 use List::Util qw( shuffle );
 use Scalar::Util qw( reftype );
 use String::Random qw( random_regex );
 
-our $VERSION = '0.200010';
+our $VERSION = '0.200020';
 
 # Guarantee that toposort is loaded.
 use base 'DBIx::Class::TopoSort';
@@ -44,6 +45,19 @@ use base 'DBIx::Class::TopoSort';
   BEGIN { *sim_types = \&sim_type; }
 }
 use DBIx::Class::Sims::Types;
+
+sub add_sim {
+  my $class = shift;
+  my ($schema, $source, $column, $sim_info) = @_;
+
+  my $col_info = $schema->source($source)->column_info($column);
+  $col_info->{sim} = merge(
+    $col_info->{sim} // {},
+    $sim_info,
+  );
+
+  return;
+}
 
 sub load_sims {
   my $self = shift;
