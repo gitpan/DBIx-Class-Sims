@@ -4,6 +4,12 @@ author:
   - 'Rob Kinyon <rob.kinyon@gmail.com>'
 build_requires:
   ExtUtils::MakeMaker: 6.59
+  File::Temp: 0.01
+  Test::DBIx::Class: 0.01
+  Test::Deep: 0.01
+  Test::Exception: 0.21
+  Test::More: 0.88
+  Test::Warn: 0.01
 configure_requires:
   ExtUtils::MakeMaker: 6.59
 distribution_type: module
@@ -20,14 +26,20 @@ no_index:
     - inc
     - t
 requires:
-  DBIx::Class::TopoSort: 0
+  DBIx::Class::TopoSort: 0.050001
   Data::Walk: 0
   Hash::Merge: 0
+  List::MoreUtils: 0
   List::Util: 0
   Scalar::Util: 0
   String::Random: 0
   YAML::XS: 0
   perl: 5.8.0
 resources:
+  IRC: irc://irc.perl.org/#dbix-class
+  MailingList: http://lists.scsys.co.uk/cgi-bin/mailman/listinfo/dbix-class
+  bugtracker: http://rt.cpan.org/NoAuth/Bugs.html?Dist=DBIx-Class-Sims
+  homepage: http://search.cpan.org/perldoc?DBIx%3A%3AClass%3A%3ASims
   license: http://dev.perl.org/licenses/
-version: 0.200020
+  repository: https://github.com/robkinyon/dbix-class-sims
+version: 0.200100
