@@ -3,6 +3,7 @@ abstract: 'The addition of simulating data to DBIx::Class'
 author:
   - 'Rob Kinyon <rob.kinyon@gmail.com>'
 build_requires:
+  DBD::SQLite: 1.40
   ExtUtils::MakeMaker: 6.59
   File::Temp: 0.01
   Test::DBIx::Class: 0.01
@@ -42,4 +43,4 @@ resources:
   homepage: http://search.cpan.org/perldoc?DBIx%3A%3AClass%3A%3ASims
   license: http://dev.perl.org/licenses/
   repository: https://github.com/robkinyon/dbix-class-sims
-version: 0.300000
+version: 0.300001
