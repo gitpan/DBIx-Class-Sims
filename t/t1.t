@@ -43,6 +43,14 @@ BEGIN {
 
 use Test::DBIx::Class qw(:resultsets);
 
+my $null_constraint_failure;
+if ($DBD::SQLite::VERSION le '1.40') {
+  $null_constraint_failure = 'may not be NULL';
+}
+else {
+  $null_constraint_failure = 'NOT NULL constraint failed';
+}
+
 {
   Schema->deploy({ add_drop_table => 1 });
 
@@ -55,7 +63,7 @@ use Test::DBIx::Class qw(:resultsets);
         ],
       },
     );
-  } qr/may not be NULL/, "Missing required column";
+  } qr/$null_constraint_failure/, "Missing required column";
 
   is Artist->count, 0, "There are still no artists loaded after load_sims is called with a failure";
 }
@@ -74,7 +82,7 @@ use Test::DBIx::Class qw(:resultsets);
         ],
       },
     );
-  } qr/may not be NULL/, "Missing required column";
+  } qr/$null_constraint_failure/, "Missing required column";
 
   is Artist->count, 0, "There are still no artists loaded after load_sims is called with a failure";
 
@@ -87,7 +95,7 @@ use Test::DBIx::Class qw(:resultsets);
         ],
       },
     );
-  } qr/may not be NULL/, "Missing required column";
+  } qr/$null_constraint_failure/, "Missing required column";
 
   is Artist->count, 0, "There are still no artists loaded after load_sims is called with a failure";
 }
@@ -280,18 +288,5 @@ Schema->source('Artist')->column_info('name')->{sim}{value} = 'george';
   
   cmp_deeply( $rv, {} );
 }
-
-# Test the null_chance setting.
-Schema->source('Artist')->column_info('hat_color')->{sim}{null_chance} = 0.3;
-my $null_count = 0;
-for (1..1000) {
-  Schema->deploy({ add_drop_table => 1 });
-
-  Schema->load_sims({ Artist => [ {} ] });
-
-  my ($row) = Artist->all;
-  $null_count++ if !defined $row->hat_color;
-}
-ok( 250 < $null_count && $null_count < 350, "null_chance worked properly ($null_count out of 1000)" );
 
 done_testing;

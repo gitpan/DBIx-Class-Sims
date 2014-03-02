@@ -24,6 +24,7 @@ no_index:
   directory:
     - inc
     - t
+    - xt
 requires:
   DBIx::Class::TopoSort: 0.050001
   Data::Walk: 0
@@ -41,5 +42,5 @@ resources:
   homepage: http://search.cpan.org/perldoc?DBIx%3A%3AClass%3A%3ASims
   license: http://dev.perl.org/licenses/
   repository: https://github.com/robkinyon/dbix-class-sims
-version: 0.300001
+version: 0.300002
 x_module_name: DBIx::Class::Sims

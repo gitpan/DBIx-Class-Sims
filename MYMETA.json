@@ -16,7 +16,8 @@
    "no_index" : {
       "directory" : [
          "inc",
-         "t"
+         "t",
+         "xt"
       ]
    },
    "prereqs" : {
@@ -66,6 +67,6 @@
       "x_IRC" : "irc://irc.perl.org/#dbix-class",
       "x_MailingList" : "http://lists.scsys.co.uk/cgi-bin/mailman/listinfo/dbix-class"
    },
-   "version" : "0.300001",
+   "version" : "0.300002",
    "x_module_name" : "DBIx::Class::Sims"
 }
